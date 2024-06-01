@@ -7,6 +7,11 @@ use itertools::Itertools;
 pub(super) type NodePointer<T> = Rc<RefCell<Node<T>>>;
 pub(super) type NodeWeak<T> = Weak<RefCell<Node<T>>>;
 
+pub enum Direction {
+    Left,
+    Right,
+}
+
 pub struct Node<T: Ord> {
     pub(super) parent: NodeWeak<T>,
     pub(super) val: T,
@@ -31,17 +36,28 @@ impl<T: Ord> Node<T> {
     pub fn val(&self) -> &T {
         &self.val
     }
+
+    pub(super) fn measure_height(&self) -> usize {
+        let left_height = match &self.left {
+            Some(left) => left.borrow().measure_height(),
+            None => 0,
+        };
+        let right_height = match &self.right {
+            Some(right) => right.borrow().measure_height(),
+            None => 0,
+        };
+        1 + left_height.max(right_height)
+    }
 }
 
-pub(super) fn print_node<T: Debug + Ord>(f: &mut Formatter, node: &NodePointer<T>, road: String) {
-        let node = node.borrow();
-
-        if let Some(right) = &node.right {
-            print_node(f, right, road.clone() + "u");
+impl<T: Ord + Debug> Node<T> {
+    pub(super) fn print_node(&self, f: &mut Formatter, road: String) {
+        if let Some(right) = &self.right {
+            right.borrow().print_node(f, road.clone() + "u");
         }
 
         write!(f, "   ").unwrap();
-        for (x,y) in road.chars().tuple_windows() {
+        for (x, y) in road.chars().tuple_windows() {
             if x != y {
                 write!(f, "│  ").unwrap();
             } else {
@@ -55,9 +71,11 @@ pub(super) fn print_node<T: Debug + Ord>(f: &mut Formatter, node: &NodePointer<T
                 write!(f, "╰──").unwrap();
             }
         }
-        writeln!(f, "{:?}", node.val).unwrap();
+        writeln!(f, "{:?}", &self.val).unwrap();
 
-        if let Some(left) = &node.left {
-            print_node(f, left, road + "d");
+        if let Some(left) = &self.left {
+            left.borrow().print_node(f, road + "d");
         }
+    }
 }
+
