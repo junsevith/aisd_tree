@@ -1,21 +1,21 @@
 use std::cell::{RefCell, RefMut};
+use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
-use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use crate::bin_tree::tree_node::{Node, NodePointer};
+use crate::experiment::Stats;
 
 mod tree_node;
 
 pub struct BinTree<T: Ord> {
     root: Option<NodePointer<T>>,
-    height: usize,
     size: usize,
 }
 
 impl<T: Ord> BinTree<T> {
     pub fn new() -> Self {
-        BinTree { root: None, height: 0, size: 0 }
+        BinTree { root: None, size: 0 }
     }
 
     pub fn height(&self) -> usize {
@@ -25,30 +25,51 @@ impl<T: Ord> BinTree<T> {
         }
     }
 
-    pub fn max(&self) -> Option<NodePointer<T>> {
+    pub fn height2(&self) -> usize {
         match &self.root {
-            None => None,
-            Some(root) => Some(max_from(root.clone()))
+            None => 0,
+            Some(root) => {
+                let mut max_height = 1;
+                let mut queue = VecDeque::new();
+                queue.push_back((1,root.clone()));
+                while !queue.is_empty() {
+                    let (height, node) = queue.pop_front().unwrap();
+                    let node_ref = node.borrow();
+
+                    if height > max_height {
+                        max_height = height;
+                    }
+
+                    if let Some(left) = &node_ref.left {
+                        queue.push_back((height+1, left.clone()));
+                    }
+                    if let Some(right) = &node_ref.right {
+                        queue.push_back((height+1, right.clone()));
+                    }
+                }
+                max_height
+            }
         }
     }
 
-    pub fn insert(&mut self, val: T) {
+    pub fn insert(&mut self, val: T, stats: &mut Stats) {
         self.size += 1;
         match &self.root {
             None => {
+                stats.swap();
                 self.root = Some(Rc::new_cyclic(|weak| {
                     RefCell::new(Node::new(val, weak.clone()))
                 }));
-                self.height = 1;
                 self.size = 1;
             }
             Some(root) => {
+                stats.read();
                 let mut current = root.clone();
-                let mut height = 2;
-
                 loop {
                     current = {
                         let mut curr_ref = current.borrow_mut();
+
+                        stats.comp();
                         let child = if val < curr_ref.val {
                             &mut curr_ref.left
                         } else {
@@ -57,49 +78,55 @@ impl<T: Ord> BinTree<T> {
 
                         match child {
                             Some(child) => {
+                                stats.read();
                                 child.clone()
                             }
                             None => {
-                                if height > self.height {
-                                    self.height = height;
-                                }
+                                stats.swap();
                                 *child = Some(Node::new_pointer(val, Rc::downgrade(&current)));
                                 break;
                             }
                         }
-                    };
-                    height += 1;
+                    }
                 }
             }
         }
     }
 
-    pub fn delete(&mut self, val: T) -> bool {
-        self.size -= 1;
+    pub fn delete(&mut self, val: T, stats: &mut Stats) -> bool {
         if self.root.is_none() {
             return false;
         } else {
             // handling case when root is to be deleted
+            let mut comp;
             {
-                let mut root_ref = self.root.as_ref().unwrap().borrow_mut();
-                if root_ref.val == val {
+                stats.read();
+                let root_ref = self.root.as_ref().unwrap().borrow_mut();
+
+                stats.comp();
+                comp = Ord::cmp(&val, &root_ref.val);
+                if comp.is_eq() {
                     // delete root
-                    let new = get_replacement(root_ref);
+                    let new = get_replacement(root_ref, stats);
+
+                    stats.swap();
                     self.root = new;
+
                     match &self.root {
                         Some(new) => {
+                            stats.swap();
                             new.borrow_mut().parent = Rc::downgrade(&self.root.as_ref().unwrap());
                         }
                         _ => {}
                     }
+                    self.size -= 1;
                     return true;
                 }
             }
 
             //when root is not the one to be deleted
+            stats.read();
             let mut current = self.root.clone().unwrap();
-            // let mut child = &mut self.root;
-            let mut comp = Ord::cmp(&val, &current.borrow().val);
             loop {
                 current = {
                     let mut current_ref = current.borrow_mut();
@@ -116,85 +143,88 @@ impl<T: Ord> BinTree<T> {
                             return false;
                         }
                         Some(child_ptr) => {
-                            let mut child_ref = child_ptr.borrow_mut();
+                            let child_ref = child_ptr.borrow_mut();
 
+                            stats.comp();
                             //comparing values
                             comp = Ord::cmp(&val, &child_ref.val);
 
                             if comp.is_eq() {
                                 // delete
-                                let new = get_replacement(child_ref);
+                                let new = get_replacement(child_ref, stats);
+                                stats.swap();
                                 *child = new;
 
+                                self.size -= 1;
                                 return true;
 
                             } else {
+                                stats.read();
                                 child_ptr.clone()
                             }
                         }
 
                     }
-                };
+                }
             }
         }
     }
 
-    #[deprecated]
-    fn delete3(&mut self, val: T) -> bool {
-        if self.root.is_none() {
-            return false;
-        } else {
-            let mut current_ptr = self.root.clone();
-            let mut height = 2;
-
-            let mut fin = false;
-            loop {
-                current_ptr = {
-                    let new = match &current_ptr {
-                        None => {
-                            return false;
-                        }
-                        Some(node) => {
-                            let mut node_ref = node.borrow_mut();
-                            if node_ref.val == val {
-                                // delete
-                                let mut new = get_replacement(node_ref);
-
-                                fin = true;
-                                new
-                            } else if val < node_ref.val {
-                                node_ref.left.clone()
-                            } else {
-                                node_ref.right.clone()
-                            }
-                        }
-                    };
-                    if fin {
-                        current_ptr.unwrap().swap(&mut new.unwrap());
-                        if height == self.height {
-                            self.height -= 1;
-                        }
-                        return true;
-                    } else {
-                        new
-                    }
-                };
-                height += 1;
-            }
-        }
-    }
+    // #[deprecated]
+    // fn delete3(&mut self, val: T) -> bool {
+    //     if self.root.is_none() {
+    //         return false;
+    //     } else {
+    //         let mut current_ptr = self.root.clone();
+    //         let mut height = 2;
+    //
+    //         let mut fin = false;
+    //         loop {
+    //             current_ptr = {
+    //                 let new = match &current_ptr {
+    //                     None => {
+    //                         return false;
+    //                     }
+    //                     Some(node) => {
+    //                         let mut node_ref = node.borrow_mut();
+    //                         if node_ref.val == val {
+    //                             // delete
+    //                             let mut new = get_replacement(node_ref, stats);
+    //
+    //                             fin = true;
+    //                             new
+    //                         } else if val < node_ref.val {
+    //                             node_ref.left.clone()
+    //                         } else {
+    //                             node_ref.right.clone()
+    //                         }
+    //                     }
+    //                 };
+    //                 if fin {
+    //                     current_ptr.unwrap().swap(&mut new.unwrap());
+    //                     return true;
+    //                 } else {
+    //                     new
+    //                 }
+    //             };
+    //             height += 1;
+    //         }
+    //     }
+    // }
 }
 
 
-fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>) -> Option<NodePointer<T>> {
+fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>, stats: &mut Stats) -> Option<NodePointer<T>> {
     let mut new =
         match (&node.left, &node.right) {
         (Some(_left), Some(right)) => {
-            let replacement = min_from(right.clone());
+            let replacement = min_from(right.clone(), stats);
             {
                 let mut replacement_ref = replacement.borrow_mut();
 
                 //connecting replacement's children to replacement's parent
+                stats.read();
+                stats.swap();
                 if Rc::ptr_eq(&replacement, right) {
                     node.right = replacement_ref.right.clone();
                 } else {
@@ -203,6 +233,7 @@ fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>) -> Option<NodePointer<T>> 
 
                 //setting correct parent in replacement's former child
                 if let Some(new_right) = &replacement_ref.right {
+                    stats.swap();
                     new_right.borrow_mut().parent = replacement_ref.parent.clone();
                 }
 
@@ -210,6 +241,8 @@ fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>) -> Option<NodePointer<T>> 
                 //     new_left.borrow_mut().parent = replacement_ref.parent.clone();
                 // }
 
+                stats.swap();
+                stats.swap();
                 //setting replacement's children to be the same as node's children
                 replacement_ref.left = node.left.clone();
                 replacement_ref.right = node.right.clone();
@@ -217,9 +250,11 @@ fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>) -> Option<NodePointer<T>> 
 
                 //setting correct parent in replacement's children
                 if let Some(left) = &replacement_ref.left {
+                    stats.swap();
                     left.borrow_mut().parent = Rc::downgrade(&replacement);
                 }
                 if let Some(right) = &replacement_ref.right {
+                    stats.swap();
                     right.borrow_mut().parent = Rc::downgrade(&replacement);
                 }
             }
@@ -227,11 +262,13 @@ fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>) -> Option<NodePointer<T>> 
             Some(replacement)
         }
         (Some(left), None) => {
+            stats.swap();
             let ret = Some(left.clone());
             node.left = None;
             ret
         }
         (None, Some(right)) => {
+            stats.swap();
             let ret = Some(right.clone());
             node.right = None;
             ret
@@ -244,6 +281,7 @@ fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>) -> Option<NodePointer<T>> 
     if let Some(new) = &mut new {
         let mut new_ref = new.borrow_mut();
 
+        stats.swap();
         //setting correct parent in replacement
         new_ref.parent = node.parent.clone();
         // new_ref.left = node.left.clone();
@@ -253,8 +291,6 @@ fn get_replacement<T: Ord>(mut node: RefMut<Node<T>>) -> Option<NodePointer<T>> 
 
     new
 }
-
-
 impl<T: Debug + Ord> Debug for BinTree<T> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         if let Some(root) = &self.root {
@@ -266,7 +302,7 @@ impl<T: Debug + Ord> Debug for BinTree<T> {
     }
 }
 
-fn max_from<T: Ord>(start: NodePointer<T>) -> NodePointer<T> {
+fn max_from<T: Ord>(start: NodePointer<T>, stats: &mut Stats) -> NodePointer<T> {
     let mut current = start;
     // while let Some(right) = current.clone().borrow().right.clone() {
     //     current = right;
@@ -275,6 +311,7 @@ fn max_from<T: Ord>(start: NodePointer<T>) -> NodePointer<T> {
     loop {
         current = {
             let current_ref = current.borrow();
+            stats.read();
             match &current_ref.right {
                 Some(right) => right.clone(),
                 None => break,
@@ -284,11 +321,12 @@ fn max_from<T: Ord>(start: NodePointer<T>) -> NodePointer<T> {
     current
 }
 
-fn min_from<T: Ord>(start: NodePointer<T>) -> NodePointer<T> {
+fn min_from<T: Ord>(start: NodePointer<T>, stats: &mut Stats) -> NodePointer<T> {
     let mut current = start;
     loop {
         current = {
             let current_ref = current.borrow();
+            stats.read();
             match &current_ref.left {
                 Some(left) => left.clone(),
                 None => break,
