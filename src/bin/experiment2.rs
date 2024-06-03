@@ -1,14 +1,14 @@
 use itertools::Itertools;
-use rand::{Rng, thread_rng};
 use rand::distributions::Distribution;
 use rand::distributions::Uniform;
+use rand::{Rng, thread_rng};
 
 use aisd_tree::{experiment, rb_tree};
 use aisd_tree::chart::draw_chart;
 use aisd_tree::experiment::{Data, divide_into};
 
 fn main() {
-    let range = (10000..=200000_usize).step_by(10000);
+    let range = (10000..=100000_usize).step_by(10000);
     let reps = 20_usize;
     let ref mut rng = thread_rng();
 
@@ -19,7 +19,7 @@ fn main() {
     let names = vec!["avg comps", "avg ptr_read", "avg ptr_swap", "avg height", "max comps", "max ptr_read", "max ptr_swap", "max height"];
 
     for n in range.clone() {
-        let mut range = Uniform::new(0, 2 * n - 1).unwrap();
+        let range = Uniform::new(0, 2 * n - 1).unwrap();
         let mut insert_data = Data::new();
         let mut delete_data = Data::new();
 
@@ -28,7 +28,7 @@ fn main() {
             let mut tree = rb_tree::BinTree::new();
             let mut elements = Vec::new();
 
-            for i in 0..n {
+            for _i in 0..n {
                 let mut stat = experiment::Stats::new();
                 let x = range.sample(rng);
                 tree.insert(x, &mut stat);
@@ -37,10 +37,11 @@ fn main() {
                 insert_data.add(stat)
             }
 
-            for i in 0..n {
+            for _i in 0..n {
                 let mut stat = experiment::Stats::new();
                 let index = rng.gen_range(0..elements.len());
                 let x = elements.remove(index);
+                // let x = range.sample(rng);
                 tree.delete(x, &mut stat);
                 stat.height(tree.height());
                 delete_data.add(stat)

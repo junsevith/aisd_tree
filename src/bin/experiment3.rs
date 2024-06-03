@@ -1,9 +1,9 @@
 use itertools::Itertools;
+use rand::{Rng, thread_rng};
 use rand::distributions::Distribution;
 use rand::distributions::Uniform;
-use rand::{Rng, thread_rng};
 
-use aisd_tree::{bin_tree, experiment};
+use aisd_tree::{experiment, splay_tree};
 use aisd_tree::chart::draw_chart;
 use aisd_tree::experiment::{Data, divide_into};
 
@@ -25,7 +25,7 @@ fn main() {
 
         for r in 0..reps {
             println!("rep: {}", r);
-            let mut tree = bin_tree::BinTree::new();
+            let mut tree = splay_tree::SplayTree::new();
             let mut elements = Vec::new();
 
             for _i in 0..n {
@@ -43,7 +43,7 @@ fn main() {
                 let x = elements.remove(index);
                 // let x = range.sample(rng);
                 tree.delete(x, &mut stat);
-                stat.height(tree.height());
+                stat.height(tree.height() as usize);
                 delete_data.add(stat)
             }
         }

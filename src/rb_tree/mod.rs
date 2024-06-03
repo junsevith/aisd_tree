@@ -1,5 +1,4 @@
 use std::cell::{RefCell, RefMut};
-use std::cmp::PartialEq;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
@@ -39,40 +38,32 @@ impl<T: Ord + Debug> BinTree<T> {
             stats.read();
             if self.comp_ptr(&parent(&x), &parent(&parent(&x)).borrow().left) {
                 stats.read();
-                let mut y = parent(&parent(&x)).borrow().right.clone();
+                let y = parent(&parent(&x)).borrow().right.clone();
 
                 if color(&y) == Red {
-                    stats.read();
                     parent(&x).borrow_mut().color = Black;
 
-                    stats.read();
                     y.unwrap().borrow_mut().color = Black;
 
-                    stats.read();
                     parent(&parent(&x)).borrow_mut().color = Red;
 
-                    stats.read();
                     x = parent(&parent(&x));
                 } else {
                     stats.read();
                     if self.comp_ptr(&x, &parent(&x).borrow().right) {
-                        stats.read();
                         x = parent(&x);
 
                         self.left_rotate(&x, stats);
                     }
-                    stats.read();
                     parent(&x).borrow_mut().color = Black;
 
-                    stats.read();
                     parent(&parent(&x)).borrow_mut().color = Red;
 
-                    stats.read();
                     self.right_rotate(&parent(&parent(&x)), stats);
                 }
             } else {
                 stats.read();
-                let mut y = parent(&parent(&x)).borrow().left.clone();
+                let y = parent(&parent(&x)).borrow().left.clone();
 
                 if color(&y) == Red {
                     stats.read();
@@ -80,27 +71,21 @@ impl<T: Ord + Debug> BinTree<T> {
 
                     y.unwrap().borrow_mut().color = Black;
 
-                    stats.read();
                     parent(&parent(&x)).borrow_mut().color = Red;
 
-                    stats.read();
                     x = parent(&parent(&x));
                 } else {
                     stats.read();
                     if self.comp_ptr(&x, &parent(&x).borrow().left) {
 
-                        stats.read();
                         x = parent(&x);
 
                         self.right_rotate(&x, stats);
                     }
-                    stats.read();
                     parent(&x).borrow_mut().color = Black;
 
-                    stats.read();
                     parent(&parent(&x)).borrow_mut().color = Red;
 
-                    stats.read();
                     self.left_rotate(&parent(&parent(&x)), stats);
                 }
             }
@@ -375,7 +360,7 @@ impl<T: Ord + Debug> BinTree<T> {
     }
 
     pub fn delete(&mut self, val: T, stats: &mut Stats) -> bool {
-        let mut z = self.search(val, stats);
+        let z = self.search(val, stats);
         return match z {
             None => false,
             Some(z) => {
