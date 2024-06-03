@@ -52,6 +52,6 @@ fn main() {
         println!("Done {}", n)
     }
 
-    draw_chart(ins, names.clone(), range.clone(), "insert", |_, y| y);
-    draw_chart(del, names, range, "delete", |_, y| y);
+    draw_chart(ins, names.clone(), range.clone(), "splay_insert", |_, y| y);
+    draw_chart(del, names, range, "splay_delete", |_, y| y);
 }
