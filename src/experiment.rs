@@ -1,3 +1,5 @@
+use std::ops::Add;
+
 pub struct Stats {
     comps: usize,
     ptr_read: usize,
@@ -46,7 +48,7 @@ impl Data {
             max: Stats::new(),
         }
     }
-    pub fn add(&mut self, stats: Stats) {
+    pub fn add_stat(&mut self, stats: Stats) {
         self.count += 1;
 
         self.sum.comps += stats.comps;
@@ -95,4 +97,24 @@ pub fn divide_into(data: Data, dataset: &mut Vec<Vec<f64>>) {
     dataset[5].push(max.ptr_read as f64);
     dataset[6].push(max.ptr_swap as f64);
     dataset[7].push(max.height as f64);
+}
+
+impl Add for Data {
+    type Output = Self;
+
+    fn add(mut self, other: Self) -> Self {
+        self.count += other.count;
+
+        self.sum.comps += other.sum.comps;
+        self.sum.ptr_read += other.sum.ptr_read;
+        self.sum.ptr_swap += other.sum.ptr_swap;
+        self.sum.height += other.sum.height;
+
+        self.max.comps = self.max.comps.max(other.max.comps);
+        self.max.ptr_read = self.max.ptr_read.max(other.max.ptr_read);
+        self.max.ptr_swap = self.max.ptr_swap.max(other.max.ptr_swap);
+        self.max.height = self.max.height.max(other.max.height);
+
+        self
+    }
 }

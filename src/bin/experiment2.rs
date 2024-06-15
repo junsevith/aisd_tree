@@ -34,7 +34,7 @@ fn main() {
                 tree.insert(x, &mut stat);
                 elements.push(x);
                 stat.height(tree.height());
-                insert_data.add(stat)
+                insert_data.add_stat(stat)
             }
 
             for _i in 0..n {
@@ -44,7 +44,7 @@ fn main() {
                 // let x = range.sample(rng);
                 tree.delete(x, &mut stat);
                 stat.height(tree.height());
-                delete_data.add(stat)
+                delete_data.add_stat(stat)
             }
         }
         divide_into(insert_data, &mut ins);
